@@ -80,10 +80,6 @@ class RLAgent:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=self.args.lr_entropy)
 
         # her sampler
-        if args.algo == 'continuous':
-            self.continuous_goals = True
-        else:
-            self.continuous_goals = False
         self.her_module = her_sampler(self.args, compute_rew)
 
         # create the replay buffer
@@ -97,15 +93,15 @@ class RLAgent:
         with torch.no_grad():
             # normalize policy inputs
             obs_norm = self.o_norm.normalize(obs)
-            ag_norm = torch.tensor(self.g_norm.normalize(ag), dtype=torch.float32).unsqueeze(0)
-            g_norm = torch.tensor(self.g_norm.normalize(g), dtype=torch.float32).unsqueeze(0)
+            ag_norm = torch.tensor(ag, dtype=torch.float32).unsqueeze(0)
+            g_norm = torch.tensor(g, dtype=torch.float32).unsqueeze(0)
 
             obs_tensor = torch.tensor(obs_norm, dtype=torch.float32).unsqueeze(0)
             if self.args.cuda:
                 obs_tensor = obs_tensor.cuda()
                 g_norm = g_norm.cuda()
                 ag_norm = ag_norm.cuda()
-            self.model.policy_forward_pass(obs_tensor, ag_norm, g_norm, no_noise=no_noise)
+            self.model.policy_forward_pass(obs_tensor, g_norm, no_noise=no_noise)
             if self.args.cuda:
                 action = self.model.pi_tensor.cpu().numpy()[0]
             else:
@@ -192,22 +188,18 @@ class RLAgent:
         transitions = self.buffer.sample(self.args.batch_size)
 
         # pre-process the observation and goal
-        o, o_next, g, ag, ag_next, actions, rewards = transitions['obs'], transitions['obs_next'], transitions['g'], transitions['ag'], \
-                                                      transitions['ag_next'], transitions['actions'], transitions['r']
+        o, o_next, g, actions, rewards = transitions['obs'], transitions['obs_next'], transitions['g'], \
+                                         transitions['actions'], transitions['r']
         transitions['obs'], transitions['g'] = self._preproc_og(o, g)
         transitions['obs_next'], transitions['g_next'] = self._preproc_og(o_next, g)
-        _, transitions['ag'] = self._preproc_og(o, ag)
-        _, transitions['ag_next'] = self._preproc_og(o, ag_next)
 
         # apply normalization
         obs_norm = self.o_norm.normalize(transitions['obs'])
         g_norm = self.g_norm.normalize(transitions['g'])
-        ag_norm = self.g_norm.normalize(transitions['ag'])
         obs_next_norm = self.o_norm.normalize(transitions['obs_next'])
-        ag_next_norm = self.g_norm.normalize(transitions['ag_next'])
 
         update_deepsets(self.model, self.policy_optim, self.critic_optim, self.alpha, self.log_alpha, self.target_entropy, self.alpha_optim,
-            obs_norm, ag_norm, g_norm, obs_next_norm, ag_next_norm, actions, rewards, self.args)
+            obs_norm, g_norm, obs_next_norm, actions, rewards, self.args)
 
     def save(self, model_path, epoch):
         torch.save([self.o_norm.mean, self.o_norm.std, self.g_norm.mean, self.g_norm.std,

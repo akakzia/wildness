@@ -159,20 +159,11 @@ class FetchManipulateEnv(robot_env.RobotEnv):
         This functions takes as input the positions of the objects in the scene and outputs the corresponding semantic configuration
         based on the environment predicates
         """
-        close_config = np.array([])
-        above_config = np.array([])
-        if "close" in self.predicates:
-            object_combinations = itertools.combinations(positions, 2)
-            object_rel_distances = np.array([objects_distance(obj[0], obj[1]) for obj in object_combinations])
+        object_permutations = itertools.permutations(positions, 2)
 
-            close_config = np.array([self._is_close(distance) for distance in object_rel_distances])
-        if "above" in self.predicates:
-            object_permutations = itertools.permutations(positions, 2)
+        above_config = np.array([is_above(obj[0], obj[1]) for obj in object_permutations])
 
-            above_config = np.array([is_above(obj[0], obj[1]) for obj in object_permutations])
-        
-        res = np.concatenate([close_config, above_config])
-        return res
+        return above_config
 
     def _get_obs(self):
         grip_pos = self.sim.data.get_site_xpos('robot0:grip')

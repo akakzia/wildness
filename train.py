@@ -17,7 +17,7 @@ def get_env_params(env):
     obs = env.reset()
 
     # close the environment
-    params = {'obs': obs['observation'].shape[0], 'goal': obs['desired_goal'].shape[0],
+    params = {'obs': obs['observation'].shape[0], 'goal': 6 ,# goal dim equals number of pairs of objects
               'action': env.action_space.shape[0], 'action_max': env.action_space.high[0],
               'max_timesteps': env._max_episode_steps}
     return params
@@ -69,7 +69,6 @@ def launch(args):
         # setup time_tracking
         time_dict = dict(goal_sampler=0,
                          rollout=0,
-                         gs_update=0,
                          store=0,
                          norm_update=0,
                          policy_train=0,
@@ -84,7 +83,7 @@ def launch(args):
 
             # Sample goals
             t_i = time.time()
-            goals = goal_sampler.sample_goal(n_goals=args.num_rollouts_per_mpi, evaluation=False)
+            goals = goal_sampler.sample_goal(n_goals=args.num_rollouts_per_mpi)
             time_dict['goal_sampler'] += time.time() - t_i
 
             # Environment interactions
@@ -95,10 +94,9 @@ def launch(args):
             time_dict['rollout'] += time.time() - t_i
 
             # Goal Sampler updates
-            t_i = time.time()
-            if args.algo == 'semantic':
-                episodes = goal_sampler.update(episodes, episode_count)
-            time_dict['gs_update'] += time.time() - t_i
+            # t_i = time.time()
+            # episodes = goal_sampler.update(episodes, episode_count)
+            # time_dict['gs_update'] += time.time() - t_i
 
             # Storing episodes
             t_i = time.time()
@@ -125,18 +123,7 @@ def launch(args):
             if rank==0: logger.info('\tRunning eval ..')
             # Performing evaluations
             t_i = time.time()
-            eval_goals = []
-            if args.n_blocks == 3:
-                instructions = ['close_1', 'close_2', 'close_3', 'stack_2', 'pyramid_3', 'stack_3']
-            elif args.n_blocks == 5:
-                instructions = ['close_1', 'close_2', 'close_3', 'stack_2', 'stack_3', '2stacks_2_2', '2stacks_2_3', 'pyramid_3',
-                                'mixed_2_3', 'stack_4', 'stack_5']
-            else:
-                raise NotImplementedError
-            for instruction in instructions:
-                eval_goal = get_eval_goals(instruction, n=args.n_blocks)
-                eval_goals.append(eval_goal.squeeze(0))
-            eval_goals = np.array(eval_goals)
+            eval_goals = goal_sampler.sample_goal(n_goals=args.n_test_rollouts)
             episodes = rollout_worker.generate_rollout(goals=eval_goals,
                                                        true_eval=True,  # this is offline evaluations
                                                        )

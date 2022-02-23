@@ -11,7 +11,7 @@ epsilon = 1e-6
 
 
 class GnCritic(nn.Module):
-    def __init__(self, nb_objects, edges, incoming_edges, predicate_ids, dim_body, dim_object, dim_mp_input,
+    def __init__(self, nb_objects, edges, incoming_edges, dim_body, dim_object, dim_mp_input,
                  dim_mp_output, dim_phi_critic_input, dim_phi_critic_output, dim_rho_critic_input, dim_rho_critic_output):
         super(GnCritic, self).__init__()
 
@@ -29,15 +29,16 @@ class GnCritic(nn.Module):
 
         self.edges = edges
         self.incoming_edges = incoming_edges
-        self.predicate_ids = predicate_ids
 
-    def forward(self, obs, act, ag, g):
+        self.predicate_ids = [[0], [1], [2], [3], [4], [5]]
+
+    def forward(self, obs, act, g):
         batch_size = obs.shape[0]
         assert batch_size == len(obs)
 
         # Critic message passing using node features, edge features and global features (here body + action)
         # Returns, for each node, the attended vector of incoming edges
-        edge_features_attended = self.message_passing(obs, act, ag, g)
+        edge_features_attended = self.message_passing(obs, act, g)
 
         obs_body = obs[:, :self.dim_body]
         obs_objects = [obs[:, self.dim_body + self.dim_object * i: self.dim_body + self.dim_object * (i + 1)]
@@ -57,17 +58,15 @@ class GnCritic(nn.Module):
         q1_pi_tensor, q2_pi_tensor = self.rho_critic(output_self_attention_1, output_self_attention_2)
         return q1_pi_tensor, q2_pi_tensor
 
-    def message_passing(self, obs, act, ag, g):
+    def message_passing(self, obs, act, g):
         batch_size = obs.shape[0]
-        assert batch_size == len(ag)
+        assert batch_size == len(g)
         
         obs_body = obs[:, :self.dim_body]
         obs_objects = [obs[:, self.dim_body + self.dim_object * i: self.dim_body + self.dim_object * (i + 1)]
                        for i in range(self.nb_objects)]
 
-        delta_g = g - ag
-
-        inp_mp = torch.stack([torch.cat([obs_body, act, delta_g[:, self.predicate_ids[i]], obs_objects[self.edges[i][0]],
+        inp_mp = torch.stack([torch.cat([obs_body, act, g[:, self.predicate_ids[i]], obs_objects[self.edges[i][0]],
                                          obs_objects[self.edges[i][1]]], dim=-1) for i in range(self.n_permutations)])
 
         output_mp = self.mp_critic(inp_mp)
@@ -81,7 +80,7 @@ class GnCritic(nn.Module):
 
 
 class GnActor(nn.Module):
-    def __init__(self, nb_objects, edges, incoming_edges, predicate_ids, dim_body, dim_object, dim_mp_input, dim_mp_output, 
+    def __init__(self, nb_objects, edges, incoming_edges, dim_body, dim_object, dim_mp_input, dim_mp_output, 
                  dim_phi_actor_input, dim_phi_actor_output, dim_rho_actor_input,dim_rho_actor_output):
         super(GnActor, self).__init__()
 
@@ -99,19 +98,18 @@ class GnActor(nn.Module):
 
         self.edges = edges
         self.incoming_edges = incoming_edges
-        self.predicate_ids = predicate_ids
+
+        self.predicate_ids = [[0], [1], [2], [3], [4], [5]]
     
-    def message_passing(self, obs, ag, g):
+    def message_passing(self, obs, g):
         batch_size = obs.shape[0]
-        assert batch_size == len(ag)
+        assert batch_size == len(g)
 
         obs_body = obs[:, :self.dim_body]
         obs_objects = [obs[:, self.dim_body + self.dim_object * i: self.dim_body + self.dim_object * (i + 1)]
                        for i in range(self.nb_objects)]
 
-        delta_g = g - ag
-
-        inp_mp = torch.stack([torch.cat([obs_body, delta_g[:, self.predicate_ids[i]], obs_objects[self.edges[i][0]],
+        inp_mp = torch.stack([torch.cat([obs_body, g[:, self.predicate_ids[i]], obs_objects[self.edges[i][0]],
                                          obs_objects[self.edges[i][1]]], dim=-1) for i in range(self.n_permutations)])
 
         output_mp = self.mp_actor(inp_mp)
@@ -123,13 +121,13 @@ class GnActor(nn.Module):
 
         return output_mp_attention
 
-    def forward(self, obs, ag, g):
+    def forward(self, obs, g):
         batch_size = obs.shape[0]
         assert batch_size == len(obs)
 
         # Actor message passing using node features, edge features and global features (here body)
         # Returns, for each node, the attended vector of incoming edges
-        edge_features_attended = self.message_passing(obs, ag, g)
+        edge_features_attended = self.message_passing(obs, g)
 
         obs_body = obs[:, :self.dim_body]
         obs_objects = [obs[:, self.dim_body + self.dim_object * i: self.dim_body + self.dim_object * (i + 1)]
@@ -145,8 +143,8 @@ class GnActor(nn.Module):
         mean, logstd = self.rho_actor(output_self_attention)
         return mean, logstd
 
-    def sample(self, obs, ag, g):
-        mean, log_std = self.forward(obs, ag, g)
+    def sample(self, obs, g):
+        mean, log_std = self.forward(obs, g)
         std = log_std.exp()
         normal = Normal(mean, std)
         x_t = normal.rsample()  # for reparameterization trick (mean + std * N(0,1))
@@ -166,6 +164,8 @@ class GnSemantic:
         self.dim_goal = env_params['goal']
         self.dim_act = env_params['action']
         self.nb_objects = args.n_blocks
+        
+        self.n_predicate = 1 #
 
         self.q1_pi_tensor = None
         self.q2_pi_tensor = None
@@ -175,12 +175,12 @@ class GnSemantic:
         self.log_prob = None
 
         # Process indexes for graph construction
-        self.edges, self.incoming_edges, self.predicate_ids = get_graph_structure(self.nb_objects)
+        self.edges, self.incoming_edges, _ = get_graph_structure(self.nb_objects)
 
-        dim_mp_actor_input = 2 * self.dim_object + 2 + self.dim_body # 2 * dim node + dim partial goal + dim global
+        dim_mp_actor_input = 2 * self.dim_object + self.n_predicate + self.dim_body # 2 * dim node + dim partial goal + dim global
         dim_mp_actor_output = 3 * dim_mp_actor_input
 
-        dim_mp_critic_input = 2 * self.dim_object + 2 + (self.dim_body + self.dim_act) # 2 * dim node + dim partial goal + dim global
+        dim_mp_critic_input = 2 * self.dim_object + self.n_predicate + (self.dim_body + self.dim_act) # 2 * dim node + dim partial goal + dim global
         dim_mp_critic_output = 3 * dim_mp_actor_input
 
         dim_phi_actor_input = self.dim_body + self.dim_object + dim_mp_actor_output
@@ -193,30 +193,30 @@ class GnSemantic:
         dim_rho_critic_input = dim_phi_critic_output
         dim_rho_critic_output = 1
 
-        self.critic = GnCritic(self.nb_objects, self.edges, self.incoming_edges, self.predicate_ids,
+        self.critic = GnCritic(self.nb_objects, self.edges, self.incoming_edges,
                                 self.dim_body, self.dim_object, dim_mp_critic_input, dim_mp_critic_output,
                                 dim_phi_critic_input, dim_phi_critic_output, dim_rho_critic_input, dim_rho_critic_output)
-        self.critic_target = GnCritic(self.nb_objects, self.edges, self.incoming_edges, self.predicate_ids,
+        self.critic_target = GnCritic(self.nb_objects, self.edges, self.incoming_edges,
                                        self.dim_body, self.dim_object, dim_mp_critic_input, dim_mp_critic_output,
                                        dim_phi_critic_input, dim_phi_critic_output, dim_rho_critic_input, dim_rho_critic_output)
-        self.actor = GnActor(self.nb_objects, self.edges, self.incoming_edges, self.predicate_ids, self.dim_body, self.dim_object, 
+        self.actor = GnActor(self.nb_objects, self.edges, self.incoming_edges, self.dim_body, self.dim_object, 
                               dim_mp_actor_input, dim_mp_actor_output, dim_phi_actor_input, dim_phi_actor_output, dim_rho_actor_input, dim_rho_actor_output)
 
-    def policy_forward_pass(self, obs, ag, g, no_noise=False):
+    def policy_forward_pass(self, obs, g, no_noise=False):
         if not no_noise:
-            self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, ag, g)
+            self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, g)
         else:
-            _, self.log_prob, self.pi_tensor = self.actor.sample(obs, ag, g)
+            _, self.log_prob, self.pi_tensor = self.actor.sample(obs, g)
 
-    def forward_pass(self, obs, ag, g, actions=None):
+    def forward_pass(self, obs, g, actions=None):
         # edge_features = self.critic.message_passing(obs, ag, g)
 
-        self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, ag, g)
+        self.pi_tensor, self.log_prob, _ = self.actor.sample(obs, g)
 
         if actions is not None:
-            self.q1_pi_tensor, self.q2_pi_tensor = self.critic.forward(obs, self.pi_tensor, ag, g)
-            return self.critic.forward(obs, actions, ag, g)
+            self.q1_pi_tensor, self.q2_pi_tensor = self.critic.forward(obs, self.pi_tensor, g)
+            return self.critic.forward(obs, actions, g)
         else:
             with torch.no_grad():
-                self.target_q1_pi_tensor, self.target_q2_pi_tensor = self.critic_target.forward(obs, self.pi_tensor, ag, g)
+                self.target_q1_pi_tensor, self.target_q2_pi_tensor = self.critic_target.forward(obs, self.pi_tensor, g)
             self.q1_pi_tensor, self.q2_pi_tensor = None, None
