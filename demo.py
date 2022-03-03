@@ -16,7 +16,7 @@ def get_env_params(env):
     obs = env.reset()
     # close the environment
     params = {'obs': obs['observation'].shape[0], 'goal': 6 ,# goal dim equals number of pairs of objects
-              'body': 10, 'obj': 15,
+              'body': 10, 'obj': 12,
               'action': env.action_space.shape[0], 'action_max': env.action_space.high[0],
               'max_timesteps': env._max_episode_steps}
     return params
@@ -68,7 +68,7 @@ if __name__ == '__main__':
 
     all_results = []
     for i in range(num_eval):
-        episodes = rollout_worker.generate_rollout(eval_goals, true_eval=False, animated=True)
+        episodes = rollout_worker.generate_rollout(eval_goals, true_eval=True, animated=True)
         results = np.array([e['rewards'][-1] == 5. for e in episodes])
         all_results.append(results)
 

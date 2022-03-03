@@ -106,6 +106,9 @@ class RLAgent:
                 action = self.model.pi_tensor.cpu().numpy()[0]
             else:
                 action = self.model.pi_tensor.numpy()[0]
+
+            # Clip action to avoid simulation collapse
+            action = np.clip(action, -self.env_params['action_max'], self.env_params['action_max'])
                 
         return action.copy()
     
