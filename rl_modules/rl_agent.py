@@ -199,7 +199,10 @@ class RLAgent:
 
         obs_1_step_trajectories = np.concatenate([obs_1_step_trajectories, obs_next_1_step_trajectories], axis=1)
 
-        rewards = reward_estimator._compute_intrinsic_rewards(obs_1_step_trajectories,obs_next_1_step_trajectories).detach().numpy()
+        if self.cuda:
+            rewards = reward_estimator._compute_intrinsic_rewards(obs_1_step_trajectories,obs_next_1_step_trajectories).detach().cpu().numpy()
+        else:
+            rewards = reward_estimator._compute_intrinsic_rewards(obs_1_step_trajectories,obs_next_1_step_trajectories).detach().numpy()
 
         rewards = np.squeeze(rewards, axis=-1)
 
