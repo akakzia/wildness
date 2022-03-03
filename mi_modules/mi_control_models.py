@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from mpi_utils.mpi_utils import sync_grads
+from mpi_utils.mpi_utils import sync_grads, sync_networks
 
 
 class MutualInformationControlEstimator:
@@ -13,6 +13,11 @@ class MutualInformationControlEstimator:
 
         from mi_modules.networks import TNetworkFlat
         self.T_network = TNetworkFlat(self.env_params, args.hidden_dim) # Mutual Information Estimator
+
+        if self.cuda: 
+            self.T_network.cuda()
+        
+        sync_networks(self.T_network)
 
         self.mi_optim = torch.optim.Adam(self.T_network.parameters(), lr=args.mi_control_lr)
 
