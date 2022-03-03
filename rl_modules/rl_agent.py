@@ -123,10 +123,10 @@ class RLAgent:
             inputs = inputs.cuda()
         return inputs
 
-    def train(self):
+    def train(self, reward_estimator=None):
         # train the network
         self.total_iter += 1
-        self._update_network()
+        self._update_network(reward_estimator=reward_estimator)
 
         # soft update
         if self.total_iter % self.freq_target_update == 0:
@@ -183,15 +183,25 @@ class RLAgent:
             target_param.data.copy_((1 - self.args.polyak) * param.data + self.args.polyak * target_param.data)
 
     # update the network
-    def _update_network(self):
+    def _update_network(self, reward_estimator=None):
         # sample from buffer, this is done with LP is multi-head is true
         transitions = self.buffer.sample(self.args.batch_size)
 
         # pre-process the observation and goal
-        o, o_next, g, actions, rewards = transitions['obs'], transitions['obs_next'], transitions['g'], \
-                                         transitions['actions'], transitions['r']
+        o, o_next, g, actions = transitions['obs'], transitions['obs_next'], transitions['g'], \
+                                transitions['actions']
         transitions['obs'], transitions['g'] = self._preproc_og(o, g)
         transitions['obs_next'], transitions['g_next'] = self._preproc_og(o_next, g)
+
+        # Compute Intrinsic rewards
+        obs_1_step_trajectories = np.expand_dims(transitions['obs'], axis=1)
+        obs_next_1_step_trajectories = np.expand_dims(transitions['obs_next'], axis=1)
+
+        obs_1_step_trajectories = np.concatenate([obs_1_step_trajectories, obs_next_1_step_trajectories], axis=1)
+
+        rewards = reward_estimator._compute_intrinsic_rewards(obs_1_step_trajectories,obs_next_1_step_trajectories).detach().numpy()
+
+        rewards = np.squeeze(rewards, axis=-1)
 
         # apply normalization
         obs_norm = self.o_norm.normalize(transitions['obs'])

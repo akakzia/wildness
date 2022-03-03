@@ -9,6 +9,7 @@ from rl_modules.rl_agent import RLAgent
 import random
 from rollout import RolloutWorker
 from goal_sampler import GoalSampler
+from mi_modules.mi_control_models import MutualInformationControlEstimator
 from utils import init_storage, get_eval_goals
 import time
 from mpi_utils import logger
@@ -18,6 +19,7 @@ def get_env_params(env):
 
     # close the environment
     params = {'obs': obs['observation'].shape[0], 'goal': 6 ,# goal dim equals number of pairs of objects
+              'body': 10, 'obj': 15,
               'action': env.action_space.shape[0], 'action_max': env.action_space.high[0],
               'max_timesteps': env._max_episode_steps}
     return params
@@ -60,6 +62,9 @@ def launch(args):
 
     # Initialize Rollout Worker
     rollout_worker = RolloutWorker(env, policy, goal_sampler,  args)
+
+    # Initialize Mutual Information Estimators 
+    control_estimator = MutualInformationControlEstimator(env_params=args.env_params, policy=policy, args=args)
 
     # Main interaction loop
     episode_count = 0
@@ -109,10 +114,13 @@ def launch(args):
                 policy._update_normalizer(e)
             time_dict['norm_update'] += time.time() - t_i
 
+            # Train MI control estimator
+            control_loss = control_estimator.train()
+
             # Policy updates
             t_i = time.time()
             for _ in range(args.n_batches):
-                policy.train()
+                policy.train(reward_estimator=control_estimator)
             time_dict['policy_train'] += time.time() - t_i
             episode_count += args.num_rollouts_per_mpi * args.num_workers
 
@@ -128,28 +136,30 @@ def launch(args):
                                                        true_eval=True,  # this is offline evaluations
                                                        )
 
-            results = np.array([e['success'][-1].astype(np.float32) for e in episodes])
-            rewards = np.array([e['rewards'][-1] for e in episodes])
-            all_results = MPI.COMM_WORLD.gather(results, root=0)
+            # results = np.array([e['success'][-1].astype(np.float32) for e in episodes])
+            # rewards = np.array([e['rewards'][-1] for e in episodes])
+            rewards = np.array([np.sum(control_estimator.compute_mutual_information(np.expand_dims(e['obs'], axis=0))) for e in episodes])
+            # all_results = MPI.COMM_WORLD.gather(results, root=0)
             all_rewards = MPI.COMM_WORLD.gather(rewards, root=0)
             time_dict['eval'] += time.time() - t_i
 
             # Logs
             if rank == 0:
-                assert len(all_results) == args.num_workers  # MPI test
-                av_res = np.array(all_results).mean(axis=0)
+                assert len(all_rewards) == args.num_workers  # MPI test
+                # av_res = np.array(all_results).mean(axis=0)
                 av_rewards = np.array(all_rewards).mean(axis=0)
-                global_sr = np.mean(av_res)
-                log_and_save(goal_sampler, epoch, episode_count, av_res, av_rewards, global_sr, time_dict)
+                # global_sr = np.mean(av_res)
+                global_sr = np.mean(av_rewards)
+                log_and_save(goal_sampler, epoch, episode_count, av_rewards, global_sr, time_dict)
 
                 # Saving policy models
                 if epoch % args.save_freq == 0:
                     policy.save(model_path, epoch)
-                if rank==0: logger.info('\tEpoch #{}: SR: {}'.format(epoch, global_sr))
+                if rank==0: logger.info('\tEpoch #{}: Average Rew: {:.2f}'.format(epoch, global_sr))
 
 
-def log_and_save( goal_sampler, epoch, episode_count, av_res, av_rew, global_sr, time_dict):
-    goal_sampler.save(epoch, episode_count, av_res, av_rew, global_sr, time_dict)
+def log_and_save( goal_sampler, epoch, episode_count, av_rew, global_sr, time_dict):
+    goal_sampler.save(epoch, episode_count, av_rew, global_sr, time_dict)
     for k, l in goal_sampler.stats.items():
         logger.record_tabular(k, l[-1])
     logger.dump_tabular()

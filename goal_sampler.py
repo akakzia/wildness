@@ -55,7 +55,6 @@ class GoalSampler:
     def init_stats(self):
         self.stats = dict()
         # Number of classes of eval
-        self.stats['Eval_SR'] = []
         self.stats['Av_Rew'] = []
         self.stats['epoch'] = []
         self.stats['episodes'] = []
@@ -65,11 +64,10 @@ class GoalSampler:
         for k in keys:
             self.stats['t_{}'.format(k)] = []
 
-    def save(self, epoch, episode_count, av_res, av_rew, global_sr, time_dict):
+    def save(self, epoch, episode_count, av_rew, global_sr, time_dict):
         self.stats['epoch'].append(epoch)
         self.stats['episodes'].append(episode_count)
         self.stats['global_sr'].append(global_sr)
         for k in time_dict.keys():
             self.stats['t_{}'.format(k)].append(time_dict[k])
-        self.stats['Eval_SR'].append(av_res[0])
         self.stats['Av_Rew'].append(av_rew[0])

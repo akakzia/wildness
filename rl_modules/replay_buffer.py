@@ -60,6 +60,16 @@ class ReplayBuffer:
         transitions = self.sample_func(temp_buffers, batch_size)
         return transitions
 
+    # Sample data and keep them as trajectories
+    def sample_trajectories(self, n):
+        temp_buffers = {}
+        indexes = np.random.randint(0, self.current_size, size=n)
+        with self.lock:
+            for key in self.buffer.keys():
+                temp_buffers[key] = self.buffer[key][indexes]
+        
+        return temp_buffers
+
     def _get_storage_idx(self, inc=None):
         inc = inc or 1
         if self.current_size + inc <= self.size:
