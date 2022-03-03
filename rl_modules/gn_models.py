@@ -159,8 +159,8 @@ class GnActor(nn.Module):
 
 class GnSemantic:
     def __init__(self, env_params, args):
-        self.dim_body = 10
-        self.dim_object = 15
+        self.dim_body = env_params['body']
+        self.dim_object = env_params['obj']
         self.dim_goal = env_params['goal']
         self.dim_act = env_params['action']
         self.nb_objects = args.n_blocks
