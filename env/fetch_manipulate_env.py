@@ -201,7 +201,7 @@ class FetchManipulateEnv(robot_env.RobotEnv):
                 object_i_rot.ravel(),
                 object_i_velr.ravel(),
                 object_i_velp.ravel(),
-                #object_i_rel_pos.ravel()
+                object_i_rel_pos.ravel()
             ])
 
             objects_positions = np.concatenate([

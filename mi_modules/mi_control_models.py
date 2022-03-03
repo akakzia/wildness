@@ -10,9 +10,11 @@ class MutualInformationControlEstimator:
         self.policy = policy
         self.nb_objects = args.n_blocks
         self.cuda = args.cuda
+        self.n_coord_body = 5 # position + gripper state
+        self.n_coord_obj = 3
 
-        from mi_modules.networks import TNetworkFlat
-        self.T_network = TNetworkFlat(self.env_params, args.hidden_dim) # Mutual Information Estimator
+        from mi_modules.networks import TNetworkSpatialFlat
+        self.T_network = TNetworkSpatialFlat(args.hidden_dim) # Mutual Information Estimator
 
         if self.cuda: 
             self.T_network.cuda()
@@ -35,9 +37,9 @@ class MutualInformationControlEstimator:
 
         obs = trajectories['obs']
 
-        obs_agent = obs[:, :, :self.env_params['body']] # (batchsize x max_timesteps x dim_body)
+        obs_agent = obs[:, :, :self.n_coord_body] # (batchsize x max_timesteps x dim_body)
         obs_object = np.stack([obs[:, :, self.env_params['body'] + i * self.env_params['obj']:
-                                self.env_params['body'] + (i+1) * self.env_params['obj']] 
+                                self.env_params['body'] + i * self.env_params['obj'] + self.n_coord_obj] 
                                 for i in range(self.nb_objects)]) # (n_objects x batchsize x max_timesteps x dim_obj)
         
         # Move axis in order to shuffle using numpy
@@ -94,11 +96,11 @@ class MutualInformationControlEstimator:
         # obs = np.reshape(obs, (obs.shape[0] * obs.shape[1], obs.shape[2]))
         # obs_next = np.reshape(obs_next, (obs_next.shape[0] * obs_next.shape[1], obs_next.shape[2]))
         # Current observation
-        obs_agent = obs[:, :, :self.env_params['body']] # (batch_size, trajectory_len, features)
+        obs_agent = obs[:, :, :self.n_coord_body] # (batch_size, trajectory_len, features)
         # obs_objects = obs[:, :, self.env_params['dim_body_features']:self.env_params['dim_body_features'] + self.env_params['dim_obj_features']]
         obs_objects = np.stack([obs[:, :, self.env_params['body'] + i * self.env_params['obj']:
-                               self.env_params['body'] + (i+1) * self.env_params['obj']] 
-                               for i in range(self.nb_objects)])
+                                self.env_params['body'] + i * self.env_params['obj'] + self.n_coord_obj] 
+                                for i in range(self.nb_objects)]) # (n_objects x batchsize x max_timesteps x dim_obj)
 
         obs_agent_shuffled = obs_agent.copy()
         obs_agent_shuffled = np.transpose(obs_agent_shuffled, axes=(1, 0, 2))
@@ -106,11 +108,11 @@ class MutualInformationControlEstimator:
         obs_agent_shuffled = np.transpose(obs_agent_shuffled, axes=(1, 0, 2))
 
         # Next observation
-        obs_next_agent = obs_next[:, :, :self.env_params['body']]
+        obs_next_agent = obs_next[:, :, :self.n_coord_body]
         # obs_next_objects = np.concatenate([obs_next[:, 4:6], obs_next[:, 10:11]], axis=-1)
         # obs_next_objects = obs_next[:, :, self.env_params['dim_body_features']:self.env_params['dim_body_features'] + self.env_params['dim_obj_features']]
         obs_next_objects = np.stack([obs_next[:, :, self.env_params['body'] + i * self.env_params['obj']:
-                               self.env_params['body'] + (i+1) * self.env_params['obj']] 
+                               self.env_params['body'] + i* self.env_params['obj'] + self.n_coord_obj] 
                                for i in range(self.nb_objects)])
 
         obs_next_agent_shuffled = obs_next_agent.copy()

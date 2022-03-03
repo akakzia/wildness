@@ -7,7 +7,7 @@ def is_success(ag, g):
 def at_least_one_fallen(observation, n):
     """ Given a observation, returns true if at least one object has fallen """
     dim_body = 10
-    dim_object = 12
+    dim_object = 15
     obs_objects = np.array([observation[dim_body + dim_object * i: dim_body + dim_object * (i + 1)] for i in range(n)])
     obs_z = obs_objects[:, 2]
 
