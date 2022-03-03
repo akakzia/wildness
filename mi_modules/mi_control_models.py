@@ -172,8 +172,11 @@ class MutualInformationControlEstimator:
         """ For experiment 2 """
         # o = np.expand_dims(o, axis=0)
         o_next = o[:, 1:, :]
-
-        return self._compute_intrinsic_rewards(o, o_next).numpy()
+        
+        if self.cuda:
+            return self._compute_intrinsic_rewards(o, o_next).cpu().numpy()
+        else:
+            return self._compute_intrinsic_rewards(o, o_next).numpy()
 
 
     def save(self, model_path, n):
