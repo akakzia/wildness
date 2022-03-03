@@ -162,6 +162,8 @@ class MutualInformationControlEstimator:
 
             r = output_joint.mean(-2) - torch.log(exp_output_marginal.mean(-2))
 
+            r = torch.exp(r) - 1
+
             # sum accross objects when performing optimization of intrinsic rewards
             r = r.sum(0)
             # mutual information is non-negative
