@@ -24,6 +24,6 @@ class TNetworkSpatialFlat(nn.Module):
     def forward(self, state):
         x1 = F.relu(self.linear1(state))
         x1 = F.relu(self.linear2(x1))
-        x1 = torch.tanh(self.linear3(x1))
+        x1 = self.linear3(x1)
 
         return x1

@@ -35,7 +35,9 @@ class MutualInformationControlEstimator:
         """ Train the MI neural estimator """
         trajectories = self.policy.buffer.sample_trajectories(n=self.batch_size)
 
-        obs = trajectories['obs']
+        obs_unorm = trajectories['obs']
+
+        obs = self.policy.o_norm.normalize(obs_unorm)
 
         obs_agent = obs[:, :, :self.n_coord_body] # (batchsize x max_timesteps x dim_body)
         obs_object = np.stack([obs[:, :, self.env_params['body'] + i * self.env_params['obj']:
@@ -90,11 +92,11 @@ class MutualInformationControlEstimator:
 
         return loss.item()
     
-    def _compute_intrinsic_rewards(self, obs, obs_next):
+    def _compute_intrinsic_rewards(self, obs_unorm, obs_next_unorm):
         """ Use Mutual Information Estimator to compute intrinsic rewards """
-        # flatten input 
-        # obs = np.reshape(obs, (obs.shape[0] * obs.shape[1], obs.shape[2]))
-        # obs_next = np.reshape(obs_next, (obs_next.shape[0] * obs_next.shape[1], obs_next.shape[2]))
+        # normalize
+        obs = self.policy.o_norm.normalize(obs_unorm)
+        obs_next = self.policy.o_norm.normalize(obs_next_unorm)
         # Current observation
         obs_agent = obs[:, :, :self.n_coord_body] # (batch_size, trajectory_len, features)
         # obs_objects = obs[:, :, self.env_params['dim_body_features']:self.env_params['dim_body_features'] + self.env_params['dim_obj_features']]
@@ -164,9 +166,10 @@ class MutualInformationControlEstimator:
 
             # r = torch.exp(r) - 1
 
+            # r = torch.clamp(100*r, min=0, max=1)
+
             # sum accross objects when performing optimization of intrinsic rewards
             r = r.sum(0)
-            r = torch.clamp(5000*r, min=0, max=1)
             # mutual information is non-negative
             # r = torch.relu(r)
         
