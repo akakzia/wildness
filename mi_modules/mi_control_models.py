@@ -79,7 +79,7 @@ class MutualInformationControlEstimator:
 
         # loss = torch.reshape(loss, (loss.shape[0] * loss.shape[1], loss.shape[2]))
         # mean accross trajectories
-        loss = loss.mean(-2)
+        loss = loss.sum(-2)
 
         # sum accross objects
         loss = loss.sum(0)
@@ -171,7 +171,7 @@ class MutualInformationControlEstimator:
             # sum accross objects when performing optimization of intrinsic rewards
             r = r.sum(0)
             # mutual information is non-negative
-            # r = torch.relu(r)
+            r = torch.relu(r)
         
         
         return r
