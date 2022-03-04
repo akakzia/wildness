@@ -37,32 +37,34 @@ class her_sampler:
                 episode_batch['r'] = reward_estimator.compute_mutual_information(episode_batch['obs'])
 
         # select which rollouts and which timesteps to be used
-        episode_idxs = np.random.randint(0, rollout_batch_size, batch_size)
+        # episode_idxs = np.random.randint(0, rollout_batch_size, batch_size)
         t_samples = np.random.randint(T, size=batch_size)
-        transitions = {key: episode_batch[key][episode_idxs, t_samples].copy() for key in episode_batch.keys()}
+        # transitions = {key: episode_batch[key][episode_idxs, t_samples].copy() for key in episode_batch.keys()}
+        # transitions = {key: np.take_along_axis(episode_batch[key], t_samples, axis=1) for key in episode_batch.keys()}
+        transitions = {key: episode_batch[key][np.arange(rollout_batch_size), t_samples].copy() for key in episode_batch.keys()}
 
         # her idx
-        if self.multi_criteria_her:
-            for sub_goal in self.semantic_ids:
-                her_indexes = np.where(np.random.uniform(size=batch_size) < self.future_p)
-                future_offset = np.random.uniform(size=batch_size) * (T - t_samples)
-                future_offset = future_offset.astype(int)
-                future_t = (t_samples + 1 + future_offset)[her_indexes]
-                # Replace
-                future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
-                transition_goals = transitions['g'][her_indexes]
-                transition_goals[:, sub_goal] = future_ag[:, sub_goal]
-                transitions['g'][her_indexes] = transition_goals
-        else:
-            her_indexes = np.where(np.random.uniform(size=batch_size) < self.future_p)
-            n_replay = her_indexes[0].size
-            future_offset = np.random.uniform(size=batch_size) * (T - t_samples)
-            future_offset = future_offset.astype(int)
-            future_t = (t_samples + 1 + future_offset)[her_indexes]
+        # if self.multi_criteria_her:
+        #     for sub_goal in self.semantic_ids:
+        #         her_indexes = np.where(np.random.uniform(size=batch_size) < self.future_p)
+        #         future_offset = np.random.uniform(size=batch_size) * (T - t_samples)
+        #         future_offset = future_offset.astype(int)
+        #         future_t = (t_samples + 1 + future_offset)[her_indexes]
+        #         # Replace
+        #         future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
+        #         transition_goals = transitions['g'][her_indexes]
+        #         transition_goals[:, sub_goal] = future_ag[:, sub_goal]
+        #         transitions['g'][her_indexes] = transition_goals
+        # else:
+        #     her_indexes = np.where(np.random.uniform(size=batch_size) < self.future_p)
+        #     n_replay = her_indexes[0].size
+        #     future_offset = np.random.uniform(size=batch_size) * (T - t_samples)
+        #     future_offset = future_offset.astype(int)
+        #     future_t = (t_samples + 1 + future_offset)[her_indexes]
 
-            # replace goal with achieved goal
-            future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
-            transitions['g'][her_indexes] = future_ag
+        #     # replace goal with achieved goal
+        #     future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
+        #     transitions['g'][her_indexes] = future_ag
             # to get the params to re-compute reward
         # transitions['r'] = np.expand_dims(np.array([self.compute_reward_masks(ag_next, g) for ag_next, g in zip(transitions['ag_next'],
         #                                             transitions['g'])]), 1)
