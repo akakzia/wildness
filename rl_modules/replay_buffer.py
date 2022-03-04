@@ -46,7 +46,7 @@ class ReplayBuffer:
                 self.buffer['actions'][idxs[i]] = e['act']
 
     # sample the data from the replay buffer
-    def sample(self, batch_size):
+    def sample(self, batch_size, reward_estimator=None):
         temp_buffers = {}
         with self.lock:
             for key in self.buffer.keys():
@@ -57,7 +57,7 @@ class ReplayBuffer:
 
 
         # sample transitions
-        transitions = self.sample_func(temp_buffers, batch_size)
+        transitions = self.sample_func(temp_buffers, batch_size, reward_estimator=reward_estimator)
         return transitions
 
     # Sample data and keep them as trajectories

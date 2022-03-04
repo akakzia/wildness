@@ -16,6 +16,7 @@ class her_sampler:
         self.multi_criteria_her = args.multi_criteria_her
         self.obj_ind = np.array([np.arange(i * 3, (i + 1) * 3) for i in range(args.n_blocks)])
 
+        self.cuda = args.cuda
         # if self.reward_type == 'per_object':
         #     self.semantic_ids = get_idxs_per_object(n=args.n_blocks)
         # else:
@@ -24,10 +25,16 @@ class her_sampler:
         self.semantic_ids = [[0, 1, 2, 4], [0, 2, 3, 5], [1, 3, 4, 5]]
         self.mask_ids = get_idxs_per_relation(n=args.n_blocks)
 
-    def sample_her_transitions(self, episode_batch, batch_size_in_transitions):
+    def sample_her_transitions(self, episode_batch, batch_size_in_transitions, reward_estimator=None):
         T = episode_batch['actions'].shape[1]
         rollout_batch_size = episode_batch['actions'].shape[0]
         batch_size = batch_size_in_transitions
+        # Compute rewards
+        if reward_estimator is not None:
+            if self.cuda:
+                episode_batch['r'] = reward_estimator.compute_mutual_information(episode_batch['obs'])
+            else:
+                episode_batch['r'] = reward_estimator.compute_mutual_information(episode_batch['obs'])
 
         # select which rollouts and which timesteps to be used
         episode_idxs = np.random.randint(0, rollout_batch_size, batch_size)
@@ -57,8 +64,8 @@ class her_sampler:
             future_ag = episode_batch['ag'][episode_idxs[her_indexes], future_t]
             transitions['g'][her_indexes] = future_ag
             # to get the params to re-compute reward
-        transitions['r'] = np.expand_dims(np.array([self.compute_reward_masks(ag_next, g) for ag_next, g in zip(transitions['ag_next'],
-                                                    transitions['g'])]), 1)
+        # transitions['r'] = np.expand_dims(np.array([self.compute_reward_masks(ag_next, g) for ag_next, g in zip(transitions['ag_next'],
+        #                                             transitions['g'])]), 1)
         return transitions
 
     def compute_reward_masks(self, ag, g):
