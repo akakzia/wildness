@@ -168,7 +168,8 @@ class MutualInformationControlEstimator:
 
             r = torch.clamp(r, min=0, max=1)
             # sum accross objects when performing optimization of intrinsic rewards
-            r = r.sum(0)
+            # r = r.sum(0)
+            r = torch.max(r, dim=0).values
             # mutual information is non-negative
         
         
