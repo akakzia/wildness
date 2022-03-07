@@ -166,12 +166,10 @@ class MutualInformationControlEstimator:
 
             # r = torch.exp(r) - 1
 
-            # r = torch.clamp(100*r, min=0, max=1)
-
+            r = torch.clamp(r)
             # sum accross objects when performing optimization of intrinsic rewards
             r = r.sum(0)
             # mutual information is non-negative
-            r = torch.relu(r)
         
         
         return r
@@ -182,7 +180,7 @@ class MutualInformationControlEstimator:
         o_next = o[:, 1:, :]
         
         if self.cuda:
-            return self._compute_intrinsic_rewards(o, o_next).cpu().numpy()
+            return self._compute_intrinsic_rewards(o, o_next).detach().cpu().numpy()
         else:
             return self._compute_intrinsic_rewards(o, o_next).numpy()
 
